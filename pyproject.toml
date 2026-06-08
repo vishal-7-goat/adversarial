@@ -1,2 +1,3 @@
 [tool.vercel]
-entrypoint = app.py
+entrypoint = adversarial_robustness_analyzer.html
+
