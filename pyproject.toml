@@ -1,3 +1,0 @@
-[tool.vercel]
-entrypoint = "adversarial_robustness_analyzer.html"
-
