@@ -6,6 +6,14 @@ import numpy as np
 import cv2
 from PIL import Image
 from skimage.metrics import structural_similarity as ssim
+from fastapi import FastAPI
+
+
+app = FastAPI() 
+
+@app.get("/")
+def read_root():
+    return {"Hello": "World"}
 
 st.set_page_config(page_title="AI Robustness Audit", layout="wide")
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
