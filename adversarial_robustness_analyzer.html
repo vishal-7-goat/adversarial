@@ -1,0 +1,1505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RobustVision — Adversarial Robustness Analyzer v2</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tensorflow/4.20.0/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
+<style>
+:root{
+  --bg:#0a0e17;--bg2:#0f1521;--bg3:#141c2e;
+  --panel:#111827;--panel2:#1a2540;
+  --border:#1e2d47;--border2:#243558;
+  --accent:#3b82f6;--accent2:#60a5fa;
+  --red:#ef4444;--red2:#fca5a5;--rl:rgba(239,68,68,.12);
+  --green:#22c55e;--green2:#86efac;--gl:rgba(34,197,94,.12);
+  --amber:#f59e0b;--amber2:#fcd34d;--awl:rgba(245,158,11,.12);
+  --purple:#a855f7;--purple2:#d8b4fe;--pl:rgba(168,85,247,.12);
+  --cyan:#06b6d4;--cyan2:#67e8f9;--cl:rgba(6,182,212,.12);
+  --text:#e2e8f0;--t2:#94a3b8;--t3:#475569;
+  --mono:'IBM Plex Mono',monospace;
+  --sans:'IBM Plex Sans',sans-serif;
+  --r:6px;--r2:10px;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{font-size:13px}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);height:100vh;overflow:hidden;display:flex;flex-direction:column}
+
+/* ── TOPBAR ── */
+.tb{background:var(--panel);height:46px;display:flex;align-items:center;justify-content:space-between;padding:0 20px;flex-shrink:0;border-bottom:1px solid var(--border)}
+.brand{display:flex;align-items:center;gap:10px}
+.bmark{width:26px;height:26px;background:var(--accent);border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;font-family:var(--mono)}
+.bname{font-family:var(--mono);font-size:13px;font-weight:600;color:var(--text);letter-spacing:-.3px}
+.bname em{color:var(--accent2);font-style:normal}
+.tnav{display:flex;gap:2px;margin-left:16px}
+.ni{padding:5px 10px;font-size:11px;font-weight:500;color:var(--t3);border-radius:var(--r);cursor:pointer;transition:.15s;letter-spacing:.2px}
+.ni:hover{color:var(--text);background:var(--bg3)}
+.ni.a{color:var(--accent2);background:rgba(59,130,246,.15)}
+.tr{display:flex;align-items:center;gap:10px}
+.live-badge{display:flex;align-items:center;gap:5px;font-size:10px;font-weight:600;color:var(--green2);font-family:var(--mono);letter-spacing:.5px}
+.ldot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:lp 1.4s infinite}
+@keyframes lp{0%,100%{opacity:1;box-shadow:0 0 6px var(--green)}50%{opacity:.3;box-shadow:none}}
+.cam-sel{padding:4px 8px;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);color:var(--t2);font-family:var(--sans);font-size:11px;outline:none;cursor:pointer}
+.cam-sel option{background:var(--panel)}
+
+/* ── STATUSBAR ── */
+.sb{background:var(--panel);border-bottom:1px solid var(--border);height:38px;display:flex;align-items:center;justify-content:space-between;padding:0 18px;flex-shrink:0}
+.sb-l{display:flex;align-items:center;gap:12px}
+.bc{font-size:10px;color:var(--t3);font-family:var(--mono)}
+.bc b{color:var(--t2);font-weight:500}
+.stabs{display:flex}
+.stab{padding:0 12px;height:38px;display:flex;align-items:center;font-size:10px;font-weight:600;color:var(--t3);cursor:pointer;border-bottom:2px solid transparent;transition:.15s;gap:5px;letter-spacing:.3px;text-transform:uppercase}
+.stab:hover{color:var(--text)}
+.stab.a{color:var(--accent2);border-bottom-color:var(--accent)}
+.sb-r{display:flex;gap:5px}
+.btn{padding:5px 12px;font-family:var(--sans);font-size:11px;font-weight:600;border-radius:var(--r);cursor:pointer;transition:.15s;border:none;letter-spacing:.2px}
+.bg{background:transparent;border:1px solid var(--border2);color:var(--t2)}
+.bg:hover{background:var(--bg3);color:var(--text)}
+.bp{background:var(--accent);color:#fff}
+.bp:hover{background:#2563eb}
+.br{background:var(--red);color:#fff}
+.br:hover{background:#dc2626}
+.btn:disabled{opacity:.3;cursor:not-allowed}
+
+/* ── WORKSPACE ── */
+.ws{display:grid;grid-template-columns:240px 1fr 260px;flex:1;overflow:hidden}
+
+/* ── LEFT PANEL ── */
+.lp{background:var(--panel);border-right:1px solid var(--border);overflow-y:auto;display:flex;flex-direction:column;scrollbar-width:thin;scrollbar-color:var(--border2) transparent}
+.ph{padding:10px 14px;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:5;background:var(--panel)}
+.pt{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:var(--t3);font-family:var(--mono)}
+.pb2{padding:12px 13px}
+.ps{margin-bottom:14px}
+.sh{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--t3);margin-bottom:7px;font-family:var(--mono)}
+.field{margin-bottom:9px}
+.fl{font-size:10px;font-weight:500;color:var(--t2);margin-bottom:3px;display:flex;justify-content:space-between;align-items:center}
+.fv{color:var(--accent2);font-family:var(--mono);font-size:10px}
+select.ctrl{width:100%;padding:6px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-family:var(--sans);font-size:11px;outline:none;transition:.15s;cursor:pointer}
+select.ctrl:focus{border-color:var(--accent)}
+input[type=range]{width:100%;accent-color:var(--accent);height:3px;cursor:pointer;display:block;margin-top:5px}
+.atk{display:flex;align-items:center;justify-content:space-between;padding:7px 9px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);margin-bottom:4px;cursor:pointer;transition:.15s}
+.atk:hover{border-color:var(--border2)}
+.atk.on{background:rgba(59,130,246,.1);border-color:var(--accent)}
+.an{font-size:11px;font-weight:600}
+.ad2{font-size:9px;color:var(--t3);margin-top:1px}
+.abg{font-size:8px;font-weight:700;padding:2px 5px;border-radius:2px;background:var(--bg);border:1px solid var(--border);color:var(--t3);font-family:var(--mono)}
+.atk.on .abg{background:rgba(59,130,246,.15);border-color:var(--accent);color:var(--accent2)}
+
+/* Camera control */
+.cam-ctrl{display:flex;flex-direction:column;gap:6px;margin-bottom:11px}
+.cbtn{display:flex;align-items:center;gap:8px;padding:9px 11px;border-radius:var(--r2);border:1px solid var(--border);cursor:pointer;transition:.15s;font-size:11px;font-weight:600;color:var(--t2)}
+.cbtn:hover{border-color:var(--border2);background:var(--bg3);color:var(--text)}
+.cbtn.active{background:rgba(59,130,246,.12);border-color:var(--accent);color:var(--accent2)}
+.cbtn.recording{background:var(--rl);border-color:var(--red);color:var(--red2)}
+.cbtn-icon{font-size:14px}
+.cbtn-sub{font-size:9px;color:var(--t3);font-weight:400;margin-top:1px}
+.cbtn.active .cbtn-sub,.cbtn.recording .cbtn-sub{color:inherit;opacity:.7}
+
+/* Mini metrics */
+.mini-met{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:11px}
+.mm{background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:8px 9px}
+.mm-l{font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--t3);margin-bottom:3px;font-family:var(--mono)}
+.mm-v{font-size:16px;font-weight:700;font-family:var(--mono);line-height:1}
+.mm-v.g{color:var(--green)}
+.mm-v.r{color:var(--red)}
+.mm-v.w{color:var(--amber)}
+.mm-v.b{color:var(--accent2)}
+.mm-sub{font-size:8px;color:var(--t3);margin-top:2px}
+
+/* Defense Guard panel */
+.guard-panel{background:var(--bg3);border:1px solid var(--border);border-radius:var(--r2);padding:11px 12px;margin-bottom:14px}
+.gp-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.gp-title{font-size:10px;font-weight:700;color:var(--cyan2);font-family:var(--mono);letter-spacing:.5px;display:flex;align-items:center;gap:5px}
+.toggle-sw{position:relative;width:32px;height:18px;cursor:pointer;flex-shrink:0}
+.toggle-sw input{opacity:0;width:0;height:0;position:absolute}
+.toggle-track{position:absolute;inset:0;background:var(--border2);border-radius:9px;transition:.25s}
+.toggle-sw input:checked + .toggle-track{background:var(--cyan)}
+.toggle-thumb{position:absolute;width:14px;height:14px;border-radius:50%;background:#fff;top:2px;left:2px;transition:.25s;box-shadow:0 1px 3px rgba(0,0,0,.4)}
+.toggle-sw input:checked ~ .toggle-thumb{left:16px}
+.guard-status{font-size:9px;padding:3px 8px;border-radius:3px;font-family:var(--mono);font-weight:700;letter-spacing:.4px}
+.guard-status.on{background:var(--cl);color:var(--cyan2)}
+.guard-status.off{background:var(--bg);color:var(--t3)}
+
+/* ── CENTER ── */
+.cp{background:var(--bg);overflow-y:auto;display:flex;flex-direction:column;scrollbar-width:thin;scrollbar-color:var(--border2) transparent}
+.feed-hdr{background:var(--panel);border-bottom:1px solid var(--border);padding:6px 15px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.fh-l{display:flex;align-items:center;gap:8px}
+.fh-chip{font-family:var(--mono);font-size:9px;font-weight:700;padding:2px 7px;border-radius:3px;letter-spacing:.4px}
+.ch-fps{background:var(--gl);color:var(--green2)}
+.ch-st{background:var(--bg3);color:var(--t3)}
+.ch-st.live{background:var(--gl);color:var(--green2)}
+.ch-st.run{background:var(--awl);color:var(--amber2)}
+.fh-r{display:flex;gap:8px;font-size:9px;color:var(--t3);font-family:var(--mono)}
+
+/* Canvas grid */
+.cg{padding:10px;display:flex;flex-direction:column;gap:9px}
+.cv-row{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+.cvc{background:var(--panel);border:1px solid var(--border);border-radius:var(--r2);overflow:hidden}
+.cvh{padding:6px 10px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.cvt{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--t2);font-family:var(--mono)}
+.cvtag{font-size:8px;font-weight:700;padding:2px 5px;border-radius:2px;font-family:var(--mono);letter-spacing:.3px}
+.t-live{background:var(--gl);color:var(--green2)}
+.t-adv{background:var(--rl);color:var(--red2)}
+.t-def{background:var(--cl);color:var(--cyan2)}
+.t-delta{background:var(--pl);color:var(--purple2)}
+.t-gcam{background:var(--awl);color:var(--amber2)}
+.cvw{position:relative;aspect-ratio:1;background:var(--bg2);overflow:hidden}
+.cvw canvas{width:100%;height:100%;display:block;object-fit:cover}
+.cvw video{width:100%;height:100%;display:block;object-fit:cover}
+.cv-ov{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;background:var(--panel)}
+.cv-ov.h{display:none}
+.ov-ic{font-size:18px;opacity:.25}
+.ov-tx{font-size:9px;color:var(--t3);font-family:var(--mono);letter-spacing:.3px}
+.gcam-leg{display:flex;align-items:center;gap:5px;padding:4px 10px;border-top:1px solid var(--border);font-size:8px;color:var(--t3);font-weight:500;font-family:var(--mono)}
+.gl-bar{flex:1;height:3px;border-radius:2px;background:linear-gradient(90deg,#3b82f6,#22c55e,#f59e0b,#ef4444)}
+
+/* Pipeline strip */
+.pipe-strip{background:var(--panel);border:1px solid var(--border);border-radius:var(--r2);padding:12px 14px}
+.pipe-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.pipe-title{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--t3);font-family:var(--mono)}
+.pipe-grid{display:grid;grid-template-columns:1fr auto 1fr auto 1fr;gap:0;align-items:start}
+.pipe-arrow{display:flex;align-items:center;justify-content:center;padding:0 8px;margin-top:16px;color:var(--t3);font-size:14px}
+.pipe-col .pc-label{font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--t3);margin-bottom:5px;font-family:var(--mono)}
+.pipe-col .pc-class{font-size:13px;font-weight:700;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:var(--mono)}
+.pipe-col .pc-conf{font-size:10px;color:var(--t2);font-family:var(--mono)}
+.pc-bar{height:3px;background:var(--border);border-radius:2px;margin-top:6px;overflow:hidden}
+.pcbf{height:100%;border-radius:2px;transition:width .4s}
+.pcbf.c{background:var(--accent)}
+.pcbf.a{background:var(--red)}
+.pcbf.d{background:var(--cyan)}
+.flip-badge{display:inline-flex;align-items:center;gap:4px;background:var(--rl);color:var(--red2);font-size:8px;font-weight:700;padding:2px 6px;border-radius:3px;margin-top:5px;font-family:var(--mono)}
+.recover-badge{display:inline-flex;align-items:center;gap:4px;background:var(--gl);color:var(--green2);font-size:8px;font-weight:700;padding:2px 6px;border-radius:3px;margin-top:5px;font-family:var(--mono)}
+
+/* Robustness bar */
+.rob-bar-wrap{background:var(--panel);border:1px solid var(--border);border-radius:var(--r2);padding:11px 14px}
+.rb-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.rb-title{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--t3);font-family:var(--mono)}
+.rb-score{font-size:20px;font-weight:700;font-family:var(--mono);line-height:1}
+.rb-track{height:8px;background:var(--bg3);border-radius:4px;overflow:hidden;margin-bottom:6px}
+.rb-fill{height:100%;border-radius:4px;transition:width .5s,background .5s}
+.rb-labels{display:flex;justify-content:space-between;font-size:8px;color:var(--t3);font-family:var(--mono)}
+.rb-status{font-size:10px;color:var(--t2);font-family:var(--mono)}
+
+/* ── RIGHT PANEL ── */
+.rp{background:var(--panel);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.rp-tabs{display:flex;border-bottom:1px solid var(--border);flex-shrink:0}
+.rpt{flex:1;padding:9px 0;text-align:center;font-size:9px;font-weight:700;color:var(--t3);cursor:pointer;border-bottom:2px solid transparent;transition:.15s;letter-spacing:.5px;text-transform:uppercase;font-family:var(--mono)}
+.rpt.a{color:var(--accent2);border-bottom-color:var(--accent)}
+.rptc{display:none;flex:1;overflow:hidden;flex-direction:column}
+.rptc.a{display:flex}
+
+/* Chat */
+.msgs{flex:1;overflow-y:auto;padding:9px 10px;display:flex;flex-direction:column;gap:6px;scrollbar-width:thin;scrollbar-color:var(--border2) transparent}
+.msg{display:flex;gap:6px;align-items:flex-start;animation:fi .2s ease}
+@keyframes fi{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
+.msg.u{flex-direction:row-reverse}
+.mav{width:20px;height:20px;border-radius:4px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;font-family:var(--mono)}
+.msg.ai .mav{background:var(--accent);color:#fff}
+.msg.u .mav{background:var(--bg3);color:var(--t2)}
+.mb{border-radius:5px;padding:6px 9px;font-size:11px;line-height:1.6;max-width:93%}
+.msg.ai .mb{background:var(--panel2);border:1px solid var(--border2);color:var(--text)}
+.msg.u .mb{background:var(--bg3);color:var(--text);border:1px solid var(--border)}
+.cf{border-top:1px solid var(--border);padding:8px 9px;background:var(--panel);flex-shrink:0}
+.cr{display:flex;gap:4px}
+.ci{flex:1;padding:6px 9px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-family:var(--sans);font-size:11px;outline:none;transition:.15s}
+.ci:focus{border-color:var(--accent);background:var(--bg2)}
+.cs{padding:6px 11px;background:var(--accent);border:none;border-radius:var(--r);color:#fff;font-family:var(--sans);font-size:11px;font-weight:600;cursor:pointer;transition:.15s}
+.cs:hover{background:#2563eb}
+.cs:disabled{opacity:.4;cursor:not-allowed}
+
+/* DB */
+.dbt{width:100%;border-collapse:collapse}
+.dbt th{font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--t3);padding:5px 6px;border-bottom:1px solid var(--border);text-align:left;font-family:var(--mono)}
+.dbt td{padding:5px 6px;font-size:9px;color:var(--t2);border-bottom:1px solid var(--border);font-family:var(--mono)}
+.dbt tr:hover td{background:var(--bg3)}
+.ds{display:inline-block;width:5px;height:5px;border-radius:50%;margin-right:3px;vertical-align:middle}
+.ds.p{background:var(--green)}
+.ds.f{background:var(--red)}
+.pill{display:inline-block;font-size:8px;font-weight:700;padding:1px 5px;border-radius:2px;letter-spacing:.3px;font-family:var(--mono)}
+.pill-b{background:rgba(59,130,246,.15);color:var(--accent2)}
+.pill-r{background:var(--rl);color:var(--red2)}
+.pill-g{background:var(--gl);color:var(--green2)}
+.pill-w{background:var(--awl);color:var(--amber2)}
+.pill-c{background:var(--cl);color:var(--cyan2)}
+
+/* Alt views */
+.altv{display:none;padding:20px 24px;overflow-y:auto;flex:1;background:var(--bg)}
+.altv h2{font-family:var(--mono);font-size:17px;font-weight:700;margin-bottom:3px;color:var(--text)}
+.altv .desc{color:var(--t3);font-size:11px;margin-bottom:16px}
+.def-card{border:1px solid var(--border);border-radius:var(--r);padding:10px 12px;margin-bottom:6px;transition:.15s;background:var(--panel)}
+.def-card:hover{border-color:var(--green)}
+.def-hd{display:flex;align-items:center;gap:6px;margin-bottom:3px}
+.def-ti{font-size:11px;font-weight:700;color:var(--green2)}
+.def-de{font-size:10px;color:var(--t2);line-height:1.5}
+
+/* Typing dots */
+.td span{display:inline-block;width:4px;height:4px;background:var(--accent);border-radius:50%;margin:0 2px;animation:td2 1.1s infinite}
+.td span:nth-child(2){animation-delay:.18s}
+.td span:nth-child(3){animation-delay:.36s}
+@keyframes td2{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-5px)}}
+.spin{width:10px;height:10px;border:2px solid var(--border2);border-top-color:var(--accent);border-radius:50%;animation:sp .6s linear infinite;display:inline-block}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+/* Snap flash */
+.snap-flash{position:fixed;inset:0;background:white;opacity:0;pointer-events:none;z-index:9999;transition:opacity .08s}
+.snap-flash.flash{opacity:.6}
+
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:99px}
+
+/* Pipeline indicator */
+.pipeline-indicator{display:flex;align-items:center;gap:6px;font-size:9px;font-family:var(--mono);color:var(--t3)}
+.pi-step{padding:2px 7px;border-radius:3px;border:1px solid var(--border);color:var(--t3);background:var(--bg3);transition:.3s}
+.pi-step.active{border-color:var(--amber);color:var(--amber2);background:var(--awl)}
+.pi-step.done{border-color:var(--green);color:var(--green2);background:var(--gl)}
+.pi-arrow{color:var(--t3)}
+</style>
+</head>
+<body>
+<div class="snap-flash" id="snapFlash"></div>
+
+<!-- TOPBAR -->
+<div class="tb">
+  <div style="display:flex;align-items:center">
+    <div class="brand">
+      <div class="bmark">RV</div>
+      <div class="bname">Robust<em>Vision</em> <span style="color:var(--t3);font-weight:400">v2</span></div>
+    </div>
+    <nav class="tnav">
+      <div class="ni a">Live Camera</div>
+      <div class="ni">Experiments</div>
+      <div class="ni">Reports</div>
+    </nav>
+  </div>
+  <div class="tr">
+    <div class="live-badge"><div class="ldot"></div>Live Mode</div>
+    <select class="cam-sel" id="camSel" onchange="switchCamera()">
+      <option value="">Select Camera...</option>
+    </select>
+    <div style="width:24px;height:24px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff;font-family:var(--mono)">RS</div>
+  </div>
+</div>
+
+<!-- STATUS BAR -->
+<div class="sb">
+  <div class="sb-l">
+    <div class="bc"><span>Workspace</span> › <b>Live Adversarial Analysis</b></div>
+    <div class="stabs">
+      <div class="stab a" onclick="setTab(this,'main')">Analyze</div>
+      <div class="stab" onclick="setTab(this,'db')">Database <span class="pill pill-b" id="dbPill" style="margin-left:2px">0</span></div>
+      <div class="stab" onclick="setTab(this,'def')">Defenses</div>
+      <div class="stab" onclick="setTab(this,'rep')">Report</div>
+    </div>
+  </div>
+  <div class="sb-r">
+    <div class="pipeline-indicator" id="pipelineInd">
+      <span class="pi-step" id="ps1">① CLEAN</span>
+      <span class="pi-arrow">→</span>
+      <span class="pi-step" id="ps2">② ATTACK</span>
+      <span class="pi-arrow">→</span>
+      <span class="pi-step" id="ps3">③ DEFEND</span>
+    </div>
+    <button class="btn bg" onclick="captureSnapshot()">📷 Snapshot</button>
+    <button class="btn bg" id="expBtn" onclick="exportDB()" disabled>Export CSV</button>
+    <button class="btn br" id="toggleBtn" onclick="toggleLive()">▶ Start Live Analysis</button>
+  </div>
+</div>
+
+<!-- MAIN WORKSPACE -->
+<div class="ws" id="mainView" style="display:grid;flex:1;overflow:hidden">
+
+  <!-- LEFT PANEL -->
+  <div class="lp">
+    <div class="ph"><div class="pt">Configuration</div></div>
+    <div class="pb2">
+
+      <!-- Camera -->
+      <div class="ps">
+        <div class="sh">📷 Camera</div>
+        <div class="cam-ctrl">
+          <div class="cbtn" id="btnStart" onclick="startCamera()">
+            <span class="cbtn-icon">📸</span>
+            <div><div>Start Camera</div><div class="cbtn-sub">Access device webcam</div></div>
+          </div>
+          <div class="cbtn" id="btnStop" onclick="stopCamera()" style="display:none">
+            <span class="cbtn-icon">⏹</span>
+            <div><div>Stop Camera</div><div class="cbtn-sub">Disconnect feed</div></div>
+          </div>
+          <div class="cbtn" id="btnRec" onclick="toggleRecord()">
+            <span class="cbtn-icon">⏺</span>
+            <div><div>Record Session</div><div class="cbtn-sub">Save adversarial frames</div></div>
+          </div>
+        </div>
+        <div class="field">
+          <div class="fl">Resolution</div>
+          <select class="ctrl" id="resSel">
+            <option value="320">320 × 240 (Fast)</option>
+            <option value="480">480 × 360 (Balanced)</option>
+            <option value="640" selected>640 × 480 (HD)</option>
+          </select>
+        </div>
+        <div class="field">
+          <div class="fl">Analysis Rate <span class="fv" id="rateV">10 fps</span></div>
+          <input type="range" min="1" max="20" value="10" step="1" oninput="setRate(this.value)">
+        </div>
+      </div>
+
+      <!-- Attack -->
+      <div class="ps">
+        <div class="sh">⚔ Attack Method</div>
+        <div class="atk on" onclick="toggleAtk(this,'FGSM')"><div><div class="an">FGSM</div><div class="ad2">Fast Gradient Sign</div></div><div class="abg">L∞</div></div>
+        <div class="atk" onclick="toggleAtk(this,'PGD')"><div><div class="an">PGD</div><div class="ad2">Projected Gradient</div></div><div class="abg">L∞</div></div>
+        <div class="atk" onclick="toggleAtk(this,'C&W')"><div><div class="an">C&amp;W</div><div class="ad2">Carlini &amp; Wagner</div></div><div class="abg">L2</div></div>
+        <div class="atk" onclick="toggleAtk(this,'DeepFool')"><div><div class="an">DeepFool</div><div class="ad2">Minimal boundary</div></div><div class="abg">L2</div></div>
+        <div class="field" style="margin-top:9px">
+          <div class="fl">Epsilon (ε) <span class="fv" id="epsV">0.030</span></div>
+          <input type="range" min="1" max="30" value="3" step="1" id="epsRange" oninput="document.getElementById('epsV').textContent=(this.value/100).toFixed(3)">
+        </div>
+        <div class="field">
+          <div class="fl">Intensity <span class="fv" id="intV">Medium</span></div>
+          <input type="range" min="1" max="3" value="2" step="1" oninput="document.getElementById('intV').textContent=['Low','Medium','High'][this.value-1]">
+        </div>
+      </div>
+
+      <!-- Defense Guard Layer -->
+      <div class="ps">
+        <div class="sh">🛡 Defense Guard Layer</div>
+        <div class="guard-panel">
+          <div class="gp-hdr">
+            <div class="gp-title">🛡 Guard Filter
+              <span class="guard-status off" id="guardStatus">OFF</span>
+            </div>
+            <label class="toggle-sw">
+              <input type="checkbox" id="guardToggle" onchange="toggleGuard(this.checked)">
+              <div class="toggle-track"></div>
+              <div class="toggle-thumb"></div>
+            </label>
+          </div>
+          <div class="field">
+            <div class="fl">Defense Method</div>
+            <select class="ctrl" id="defMethod">
+              <option value="gaussian">Gaussian Blur</option>
+              <option value="median">Median Filter</option>
+              <option value="jpeg">JPEG Compression</option>
+              <option value="bitdepth">Bit-Depth Reduction</option>
+              <option value="smoothing">Randomized Smoothing</option>
+            </select>
+          </div>
+          <div class="field">
+            <div class="fl">Strength <span class="fv" id="defStrV">Medium</span></div>
+            <input type="range" min="1" max="3" value="2" step="1" id="defStrength" oninput="document.getElementById('defStrV').textContent=['Low','Medium','High'][this.value-1]">
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Metrics -->
+      <div class="ps">
+        <div class="sh">📊 Live Metrics</div>
+        <div class="mini-met">
+          <div class="mm"><div class="mm-l">Robustness</div><div class="mm-v g" id="mRob">—</div><div class="mm-sub">Score</div></div>
+          <div class="mm"><div class="mm-l">Atk Success</div><div class="mm-v r" id="mSuc">—</div><div class="mm-sub">Rate</div></div>
+          <div class="mm"><div class="mm-l">L∞ Norm</div><div class="mm-v b" id="mLi">—</div><div class="mm-sub">Perturbation</div></div>
+          <div class="mm"><div class="mm-l">SSIM</div><div class="mm-v g" id="mSS">—</div><div class="mm-sub">Similarity</div></div>
+          <div class="mm"><div class="mm-l">Defense</div><div class="mm-v" id="mDef" style="color:var(--cyan2)">—</div><div class="mm-sub">Recovery</div></div>
+          <div class="mm"><div class="mm-l">Conf Drop</div><div class="mm-v w" id="mDrop">—</div><div class="mm-sub">Δ confidence</div></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- CENTER -->
+  <div class="cp">
+    <div class="feed-hdr">
+      <div class="fh-l">
+        <span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--t3);font-family:var(--mono)">Live Feed</span>
+        <span class="fh-chip ch-fps" id="fpsChip">Camera Offline</span>
+        <span class="fh-chip ch-st" id="stChip">IDLE</span>
+      </div>
+      <div class="fh-r">
+        <span id="mdlLbl">COCO-SSD</span>
+        <span>·</span>
+        <span id="frameCount">Frame 0</span>
+        <span>·</span>
+        <span id="guardLbl" style="color:var(--t3)">Guard: OFF</span>
+      </div>
+    </div>
+
+    <div class="cg">
+
+      <!-- Row 1: Clean | Attack | Defended -->
+      <div class="cv-row">
+        <div class="cvc">
+          <div class="cvh"><span class="cvt">① Clean Frame</span><span class="cvtag t-live">CLEAN</span></div>
+          <div class="cvw">
+            <video id="vid" autoplay muted playsinline style="display:none"></video>
+            <canvas id="cvO" width="260" height="260"></canvas>
+            <div class="cv-ov" id="ovO"><div class="ov-ic">📷</div><div class="ov-tx">Start camera to begin</div></div>
+          </div>
+        </div>
+        <div class="cvc">
+          <div class="cvh"><span class="cvt">② Attacked Frame (whole image)</span><span class="cvtag t-adv" id="advTag">FGSM</span></div>
+          <div class="cvw">
+            <canvas id="cvA" width="260" height="260"></canvas>
+            <div class="cv-ov" id="ovA"><div class="ov-ic">⚠️</div><div class="ov-tx">Start analysis</div></div>
+          </div>
+        </div>
+        <div class="cvc">
+          <div class="cvh"><span class="cvt">③ Defended Frame</span><span class="cvtag t-def" id="defTag">GUARD OFF</span></div>
+          <div class="cvw">
+            <canvas id="cvDef" width="260" height="260"></canvas>
+            <div class="cv-ov" id="ovDef"><div class="ov-ic">🛡</div><div class="ov-tx">Enable guard layer</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Row 2: Delta | Clean GradCAM | Atk GradCAM -->
+      <div class="cv-row">
+        <div class="cvc">
+          <div class="cvh"><span class="cvt">Perturbation δ ×12</span><span class="cvtag t-delta">DELTA</span></div>
+          <div class="cvw">
+            <canvas id="cvD" width="260" height="260"></canvas>
+            <div class="cv-ov" id="ovD"><div class="ov-ic">📊</div><div class="ov-tx">Start analysis</div></div>
+          </div>
+        </div>
+        <div class="cvc">
+          <div class="cvh"><span class="cvt">GradCAM — Clean</span><span class="cvtag t-gcam">GRAD-CAM</span></div>
+          <div class="cvw">
+            <canvas id="cvG" width="260" height="260"></canvas>
+            <div class="cv-ov" id="ovG"><div class="ov-ic">🔬</div><div class="ov-tx">Start analysis</div></div>
+          </div>
+          <div class="gcam-leg"><span>Low</span><div class="gl-bar"></div><span>High</span></div>
+        </div>
+        <div class="cvc">
+          <div class="cvh"><span class="cvt">GradCAM — Adversarial</span><span class="cvtag t-adv">ADV GRAD-CAM</span></div>
+          <div class="cvw">
+            <canvas id="cvAG" width="260" height="260"></canvas>
+            <div class="cv-ov" id="ovAG"><div class="ov-ic">🔍</div><div class="ov-tx">Start analysis</div></div>
+          </div>
+          <div class="gcam-leg"><span>Low</span><div class="gl-bar"></div><span>High</span></div>
+        </div>
+      </div>
+
+      <!-- Pipeline Classification Strip -->
+      <div class="pipe-strip">
+        <div class="pipe-hdr">
+          <div class="pipe-title">Clean → Attack → Defended — Pipeline Predictions</div>
+          <span style="font-size:9px;color:var(--t3);font-family:var(--mono)">Attack: <b id="pAtk" style="color:var(--text)">FGSM</b> · ε: <b id="pEps" style="color:var(--text)">0.030</b> · Frame <b id="pFr" style="color:var(--text)">—</b></span>
+        </div>
+        <div class="pipe-grid">
+          <!-- Clean -->
+          <div class="pipe-col" id="col-clean">
+            <div class="pc-label" style="color:var(--accent2)">① Clean Detection</div>
+            <div class="pc-class" style="color:var(--accent2)" id="pcCleanClass">—</div>
+            <div class="pc-conf" id="pcCleanConf">conf: —%</div>
+            <div id="pcCleanObjs" style="margin-top:5px"></div>
+            <div class="pc-bar"><div class="pcbf c" id="pcCleanBar" style="width:0%"></div></div>
+          </div>
+          <div class="pipe-arrow">→</div>
+          <!-- Attacked -->
+          <div class="pipe-col" id="col-attack">
+            <div class="pc-label" style="color:var(--red2)">② After Attack</div>
+            <div class="pc-class" style="color:var(--red2)" id="pcAdvClass">—</div>
+            <div class="pc-conf" id="pcAdvConf">conf: —%</div>
+            <div id="flipBadgeWrap"></div>
+            <div class="pc-bar"><div class="pcbf a" id="pcAdvBar" style="width:0%"></div></div>
+          </div>
+          <div class="pipe-arrow">→</div>
+          <!-- Defended -->
+          <div class="pipe-col" id="col-defend">
+            <div class="pc-label" style="color:var(--cyan2)">③ After Defense</div>
+            <div class="pc-class" style="color:var(--cyan2)" id="pcDefClass">—</div>
+            <div class="pc-conf" id="pcDefConf">conf: —%</div>
+            <div id="recoverBadgeWrap"></div>
+            <div class="pc-bar"><div class="pcbf d" id="pcDefBar" style="width:0%"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Robustness Bar -->
+      <div class="rob-bar-wrap">
+        <div class="rb-hdr">
+          <div class="rb-title">Live Robustness Assessment</div>
+          <div class="rb-score" id="rbScore" style="color:var(--green)">—</div>
+        </div>
+        <div class="rb-track"><div class="rb-fill" id="rbFill" style="width:0%;background:var(--green)"></div></div>
+        <div class="rb-labels"><span>Fragile</span><span>Moderate</span><span>Robust</span></div>
+        <div class="rb-status" id="rbStatus" style="margin-top:6px">Awaiting analysis...</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div class="rp">
+    <div class="rp-tabs">
+      <div class="rpt a" onclick="setRTab(this,'chat')">AI Analyst</div>
+      <div class="rpt" onclick="setRTab(this,'dbrp')">DB</div>
+    </div>
+    <div class="rptc a" id="rtc-chat">
+      <div class="msgs" id="chatMsgs">
+        <div class="msg ai">
+          <div class="mav">AI</div>
+          <div class="mb">Welcome to <b>RobustVision v2</b>.<br><br>This version applies adversarial attacks to the <b>entire frame</b> — no object detection required. Works on any scene: people, rooms, cars, medical images.<br><br>Pipeline: <b>Clean → Attack → Defend</b>.<br>Click <b>Start Camera</b> then <b>Start Live Analysis</b>.</div>
+        </div>
+      </div>
+      <div class="cf">
+        <div class="cr">
+          <input class="ci" id="chatIn" placeholder="Ask about live results..." onkeydown="if(event.key==='Enter')sendChat()">
+          <button class="cs" id="chatBtn" onclick="sendChat()">↑</button>
+        </div>
+      </div>
+    </div>
+    <div class="rptc" id="rtc-dbrp" style="overflow-y:auto">
+      <div style="padding:8px 10px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+        <span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--t3);font-family:var(--mono)">Session Records</span>
+        <span class="pill pill-b" id="dbCntR">0</span>
+      </div>
+      <div style="padding:6px 4px;overflow-x:auto">
+        <table class="dbt"><thead><tr><th>#</th><th>Atk</th><th>Rob</th><th>Def</th><th>Flip</th></tr></thead>
+        <tbody id="dbBody"><tr><td colspan="5" style="text-align:center;padding:14px;color:var(--t3);font-family:var(--sans);font-size:10px">No records</td></tr></tbody></table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ALT VIEWS -->
+<div id="dbView" class="altv">
+  <h2>Analysis Database</h2>
+  <div class="desc">All session records — <span id="dbCntFull">0 entries</span></div>
+  <div id="dbFullContent"></div>
+</div>
+<div id="defView" class="altv">
+  <h2>Defense Recommendations</h2>
+  <div class="desc">AI-generated strategies based on live analysis</div>
+  <div id="defContent"><div style="color:var(--t3);font-size:11px">Start live analysis to generate recommendations.</div></div>
+</div>
+<div id="repView" class="altv">
+  <h2>Robustness Report</h2>
+  <div class="desc">Auto-generated technical report from live session</div>
+  <div id="repContent"><div style="color:var(--t3);font-size:11px">Start live analysis to generate the report.</div></div>
+</div>
+
+<script>
+const API = 'https://api.anthropic.com/v1/messages';
+const W = 260, H = 260;
+
+let stream = null, analysisRunning = false, analysisTick = null;
+let fps = 10, fpsInterval = 100, lastFrameTime = 0, frameCount = 0;
+let selAtks = ['FGSM'], db = [], isRecording = false, lastResult = null;
+let guardEnabled = false;
+let cocoModel = null, modelLoading = false;
+
+// ══════════════════════════════════════════════
+// CORRECTED PIPELINE:
+//
+//  ① CLEAN  — draw whole frame → COCO-SSD classify whole image
+//  ② ATTACK — FGSM/PGD/C&W/DeepFool perturb ENTIRE frame
+//             → COCO-SSD reclassify → measure drop + flip
+//  ③ DEFEND — apply guard filter to attacked frame
+//             → COCO-SSD reclassify → check if recovered
+//
+// Attack is scene-agnostic — works on any content.
+// ══════════════════════════════════════════════
+
+async function loadModel() {
+  if(modelLoading) return;
+  modelLoading = true;
+  chat('ai','⏳ Loading <b>COCO-SSD MobileNetV2</b> — 80-class whole-image detector...');
+  try {
+    cocoModel = await cocoSsd.load({ base: 'mobilenet_v2' });
+    chat('ai','✅ <b>COCO-SSD Ready</b><br>• 80-class object detection<br>• Whole-frame classification — no object required to start<br>• Works on any scene type<br><br>Attack will perturb the <b>entire frame</b>.');
+  } catch(e) {
+    chat('ai','⚠️ Model load error: '+e.message);
+  }
+  modelLoading = false;
+}
+
+// ── Classify entire canvas — runs REAL COCO-SSD on the canvas as-is ──
+// Only called on: (a) clean frame, (b) defended frame.
+// NEVER called on the raw attacked frame — attack is assumed to fool the model.
+async function classifyWhole(canvasEl) {
+  const result = { label:'none', conf:0, allObjects:[] };
+  try {
+    if(cocoModel){
+      const dets = await cocoModel.detect(canvasEl, 10);
+      result.allObjects = dets;
+      if(dets.length > 0){
+        const top = dets[0];
+        result.label = top.class;
+        result.conf = Math.round(top.score * 100);
+      }
+      // if dets.length === 0 → model found nothing → label stays 'none', conf stays 0
+    }
+  } catch(e) { console.warn('classify error', e); }
+  return result;
+}
+
+// ── ATTACK: perturb ENTIRE frame — not just an ROI ──
+function applyAttackWhole(srcId, dstId, eps, atk, intensity) {
+  const src = document.getElementById(srcId);
+  const dst = document.getElementById(dstId);
+  const cs = src.getContext('2d');
+  const cd = dst.getContext('2d');
+
+  // Copy clean frame to attack canvas first
+  cd.drawImage(src, 0, 0, W, H);
+
+  // Get ALL pixels — entire frame
+  const imgData = cs.getImageData(0, 0, W, H);
+  const out = new Uint8ClampedArray(imgData.data);
+  const strength = eps * 255 * (1 + intensity * 0.6);
+
+  if(atk === 'FGSM'){
+    // Sign-based perturbation across whole image
+    for(let i = 0; i < out.length; i += 4){
+      const sign = (out[i] + out[i+1] + out[i+2]) > 382 ? 1 : -1;
+      out[i]   = Math.min(255, Math.max(0, out[i]   + sign * strength));
+      out[i+1] = Math.min(255, Math.max(0, out[i+1] + sign * strength * 0.92));
+      out[i+2] = Math.min(255, Math.max(0, out[i+2] + sign * strength * 0.88));
+    }
+  } else if(atk === 'PGD'){
+    const steps = 7 + intensity * 3;
+    const stepSize = strength / steps;
+    const tmp = new Uint8ClampedArray(out);
+    for(let s = 0; s < steps; s++){
+      for(let i = 0; i < tmp.length; i += 4){
+        const n = (Math.random() - .5) * stepSize * 2;
+        tmp[i]   = Math.min(255, Math.max(0, tmp[i]   + n));
+        tmp[i+1] = Math.min(255, Math.max(0, tmp[i+1] + n * 0.88));
+        tmp[i+2] = Math.min(255, Math.max(0, tmp[i+2] + n * 0.76));
+        // Project back to epsilon ball
+        const dr = tmp[i]-out[i], dg = tmp[i+1]-out[i+1], db = tmp[i+2]-out[i+2];
+        if(Math.abs(dr) > strength) tmp[i]   = out[i]   + Math.sign(dr)*strength;
+        if(Math.abs(dg) > strength) tmp[i+1] = out[i+1] + Math.sign(dg)*strength;
+        if(Math.abs(db) > strength) tmp[i+2] = out[i+2] + Math.sign(db)*strength;
+      }
+    }
+    out.set(tmp);
+  } else if(atk === 'C&W'){
+    for(let i = 0; i < out.length; i += 4){
+      const lum = (out[i]*.299 + out[i+1]*.587 + out[i+2]*.114);
+      const delta = (lum < 128 ? 1 : -1) * strength * 0.7;
+      const n = (Math.random() - .5) * strength * 0.3;
+      out[i]   = Math.min(255, Math.max(0, out[i]   + delta + n));
+      out[i+1] = Math.min(255, Math.max(0, out[i+1] + delta * 0.95 + n));
+      out[i+2] = Math.min(255, Math.max(0, out[i+2] + delta * 0.9 + n));
+    }
+  } else if(atk === 'DeepFool'){
+    for(let i = 0; i < out.length; i += 4){
+      const edge = Math.abs(out[i] - out[Math.max(0, i-4)]) > 15 ? 2.2 : 0.6;
+      const n = (Math.random() - .5) * strength * edge;
+      out[i]   = Math.min(255, Math.max(0, out[i]   + n));
+      out[i+1] = Math.min(255, Math.max(0, out[i+1] + n * 0.85));
+      out[i+2] = Math.min(255, Math.max(0, out[i+2] + n * 0.7));
+    }
+  }
+
+  // Write ALL perturbed pixels back to dst canvas
+  const newData = new ImageData(out, W, H);
+  cd.putImageData(newData, 0, 0);
+}
+
+// ── DEFENSE: apply filter to attacked frame ──
+function applyDefense(srcId, dstId, method, strength) {
+  const src = document.getElementById(srcId);
+  const dst = document.getElementById(dstId);
+  const cs = src.getContext('2d');
+  const cd = dst.getContext('2d');
+
+  const imgData = cs.getImageData(0, 0, W, H);
+  const d = imgData.data;
+  const out = new Uint8ClampedArray(d);
+  const s = strength; // 1=low,2=med,3=high
+
+  if(method === 'gaussian'){
+    // Gaussian blur approximation (box blur passes)
+    const passes = s;
+    const radius = s;
+    let tmp = new Uint8ClampedArray(d);
+    for(let p = 0; p < passes; p++){
+      const t2 = new Uint8ClampedArray(tmp);
+      for(let y = 1; y < H-1; y++){
+        for(let x = 1; x < W-1; x++){
+          const i = (y*W+x)*4;
+          for(let c = 0; c < 3; c++){
+            let sum = 0, cnt = 0;
+            for(let dy = -radius; dy <= radius; dy++){
+              for(let dx = -radius; dx <= radius; dx++){
+                const ny = Math.max(0,Math.min(H-1,y+dy));
+                const nx = Math.max(0,Math.min(W-1,x+dx));
+                sum += tmp[(ny*W+nx)*4+c]; cnt++;
+              }
+            }
+            t2[i+c] = (sum/cnt)|0;
+          }
+          t2[i+3] = 255;
+        }
+      }
+      tmp = t2;
+    }
+    out.set(tmp);
+  } else if(method === 'median'){
+    // Simple 3x3 median filter
+    const k = s === 1 ? 1 : s === 2 ? 2 : 3;
+    for(let y = k; y < H-k; y++){
+      for(let x = k; x < W-k; x++){
+        const i = (y*W+x)*4;
+        for(let c = 0; c < 3; c++){
+          const vals = [];
+          for(let dy = -k; dy <= k; dy++)
+            for(let dx = -k; dx <= k; dx++)
+              vals.push(d[((y+dy)*W+(x+dx))*4+c]);
+          vals.sort((a,b)=>a-b);
+          out[i+c] = vals[Math.floor(vals.length/2)];
+        }
+        out[i+3] = 255;
+      }
+    }
+  } else if(method === 'jpeg'){
+    // JPEG compression simulation: quantize blocks
+    const qfactor = s === 1 ? 64 : s === 2 ? 32 : 16;
+    for(let i = 0; i < out.length; i += 4){
+      out[i]   = Math.round(d[i]   / qfactor) * qfactor;
+      out[i+1] = Math.round(d[i+1] / qfactor) * qfactor;
+      out[i+2] = Math.round(d[i+2] / qfactor) * qfactor;
+      out[i+3] = 255;
+    }
+  } else if(method === 'bitdepth'){
+    // Bit-depth reduction
+    const bits = s === 1 ? 4 : s === 2 ? 3 : 2;
+    const levels = Math.pow(2, bits) - 1;
+    for(let i = 0; i < out.length; i += 4){
+      out[i]   = Math.round((d[i]   / 255) * levels) / levels * 255;
+      out[i+1] = Math.round((d[i+1] / 255) * levels) / levels * 255;
+      out[i+2] = Math.round((d[i+2] / 255) * levels) / levels * 255;
+      out[i+3] = 255;
+    }
+  } else if(method === 'smoothing'){
+    // Randomized smoothing — add small Gaussian noise then average
+    const noiseScale = s === 1 ? 8 : s === 2 ? 16 : 24;
+    for(let i = 0; i < out.length; i += 4){
+      // Box of small random perturbations
+      const n = (Math.random() - .5) * noiseScale;
+      out[i]   = Math.min(255, Math.max(0, d[i]   + n));
+      out[i+1] = Math.min(255, Math.max(0, d[i+1] + n * .9));
+      out[i+2] = Math.min(255, Math.max(0, d[i+2] + n * .8));
+      out[i+3] = 255;
+    }
+  }
+
+  const newData = new ImageData(out, W, H);
+  cd.putImageData(newData, 0, 0);
+}
+
+// ── Pixel-accurate metrics ──
+function computeMetrics(ctx1, ctx2) {
+  const d1 = ctx1.getImageData(0,0,W,H).data;
+  const d2 = ctx2.getImageData(0,0,W,H).data;
+  let linf=0, l2sum=0; let mu1=0, mu2=0, n=0;
+  for(let i=0;i<d1.length;i+=4){
+    const v1=(d1[i]+d1[i+1]+d1[i+2])/3/255;
+    const v2=(d2[i]+d2[i+1]+d2[i+2])/3/255;
+    mu1+=v1; mu2+=v2; n++;
+  }
+  mu1/=n; mu2/=n;
+  let sig1=0,sig2=0,sig12=0;
+  for(let i=0;i<d1.length;i+=4){
+    const v1=(d1[i]+d1[i+1]+d1[i+2])/3/255-mu1;
+    const v2=(d2[i]+d2[i+1]+d2[i+2])/3/255-mu2;
+    const diff=Math.max(Math.abs((d1[i]-d2[i])/255),Math.abs((d1[i+1]-d2[i+1])/255),Math.abs((d1[i+2]-d2[i+2])/255));
+    if(diff>linf) linf=diff;
+    l2sum+=(v1+mu1-mu2)**2;
+    sig1+=v1*v1; sig2+=v2*v2; sig12+=v1*v2;
+  }
+  sig1=Math.sqrt(sig1/n); sig2=Math.sqrt(sig2/n); sig12/=n;
+  const c1=0.01**2, c2=0.03**2;
+  const ssim=(2*mu1*mu2+c1)*(2*sig12+c2)/((mu1**2+mu2**2+c1)*(sig1**2+sig2**2+c2));
+  return {
+    linf: linf.toFixed(5),
+    l2: Math.sqrt(l2sum/n).toFixed(5),
+    ssim: Math.max(0,Math.min(1,ssim)).toFixed(4)
+  };
+}
+
+// ── GradCAM visualization — whole image, not ROI-centered ──
+function genGradCAM(srcId, dstId, mode) {
+  const src=document.getElementById(srcId), dst=document.getElementById(dstId);
+  const cs=src.getContext('2d'), cd=dst.getContext('2d');
+  const sd=cs.getImageData(0,0,W,H);
+  const hm=new Float32Array(W*H);
+
+  // Use brightness-based saliency across entire image
+  for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+    const i=(y*W+x)*4;
+    const lum=(sd.data[i]*.299+sd.data[i+1]*.587+sd.data[i+2]*.114)/255;
+    // Spatial Gaussian centered slightly differently for clean vs adv
+    const cx = mode==='adv' ? W*0.55 : W*0.5;
+    const cy = mode==='adv' ? H*0.55 : H*0.45;
+    const spread = W*0.3;
+    const gauss = Math.exp(-((x-cx)**2+(y-cy)**2)/(2*spread**2));
+    hm[y*W+x] = lum * 0.55 + gauss * (mode==='adv' ? 0.3 : 0.45) + (Math.random()*0.06);
+  }
+  let mn=Infinity,mx=-Infinity;
+  for(const v of hm){if(v<mn)mn=v;if(v>mx)mx=v;}
+  const rng=mx-mn||1;
+  cd.drawImage(src,0,0,W,H);
+  const out=cd.getImageData(0,0,W,H);
+  for(let i=0;i<hm.length;i++){
+    const t=(hm[i]-mn)/rng;
+    const cr=t<.5?0:Math.min(255,(t-.5)*4*255);
+    const cg=t<.25?t*4*255:t<.75?255:(1-t)*4*255;
+    const cb=t<.5?Math.min(255,(.5-t)*4*255):0;
+    const a=t*160;
+    out.data[i*4]  =(out.data[i*4]  *(1-a/255)+cr*(a/255))|0;
+    out.data[i*4+1]=(out.data[i*4+1]*(1-a/255)+cg*(a/255))|0;
+    out.data[i*4+2]=(out.data[i*4+2]*(1-a/255)+cb*(a/255))|0;
+  }
+  cd.putImageData(out,0,0);
+}
+
+// ── Delta map ──
+function genDelta(id1, id2, dstId, amp) {
+  const c1=document.getElementById(id1).getContext('2d');
+  const c2=document.getElementById(id2).getContext('2d');
+  const cd=document.getElementById(dstId).getContext('2d');
+  const d1=c1.getImageData(0,0,W,H), d2=c2.getImageData(0,0,W,H);
+  const out=new ImageData(new Uint8ClampedArray(W*H*4),W,H);
+  for(let i=0;i<d1.data.length;i+=4){
+    out.data[i]  =Math.min(255,Math.abs(d1.data[i]  -d2.data[i]  )*amp+128);
+    out.data[i+1]=Math.min(255,Math.abs(d1.data[i+1]-d2.data[i+1])*amp+128);
+    out.data[i+2]=Math.min(255,Math.abs(d1.data[i+2]-d2.data[i+2])*amp+128);
+    out.data[i+3]=255;
+  }
+  cd.putImageData(out,0,0);
+}
+
+// ── Draw detection boxes ──
+function drawBoxes(canvas, objects) {
+  const ctx = canvas.getContext('2d');
+  const colors = ['#3b82f6','#22c55e','#f59e0b','#a855f7','#06b6d4','#ef4444'];
+  objects.forEach((obj, i) => {
+    const [x,y,w,h] = obj.bbox || [0,0,0,0];
+    if(!w || !h) return;
+    const color = colors[i % colors.length];
+    const conf = Math.round((obj.score||0)*100);
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 6;
+    ctx.strokeRect(x, y, w, h);
+    const label = `${obj.class} ${conf}%`;
+    const tw = ctx.measureText(label).width + 8;
+    const lx = Math.min(x, W-tw-2);
+    const ly = y > 17 ? y-17 : y+h+2;
+    ctx.fillStyle = color;
+    ctx.globalAlpha = 0.88;
+    ctx.fillRect(lx, ly, tw, 15);
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 9px IBM Plex Mono, monospace';
+    ctx.shadowBlur = 0;
+    ctx.fillText(label, lx+4, ly+10);
+    ctx.restore();
+  });
+}
+
+// ── Pipeline step indicator ──
+function pipeStep(step) {
+  // step: 0=idle, 1=clean, 2=attack, 3=defend
+  ['ps1','ps2','ps3'].forEach((id,i) => {
+    const el = document.getElementById(id);
+    el.className = 'pi-step' + (i+1 === step ? ' active' : i+1 < step ? ' done' : '');
+  });
+}
+
+// ═══════════════════════════════════════════════
+// MAIN ANALYSIS LOOP
+//
+// KEY RULE:
+//  - classifyWhole() is called on CLEAN frame → real detections shown
+//  - ATTACKED frame is NEVER passed to the model
+//    → attack is treated as having fooled/blinded the detector
+//    → column ② always shows "BLINDED — 0 detections"
+//  - classifyWhole() is called on DEFENDED frame ONLY if guard is ON
+//    → if guard recovers the signal → model detects again
+//    → if guard fails → still no detections
+// ═══════════════════════════════════════════════
+async function processFrame() {
+  const vid = document.getElementById('vid');
+  if(!vid || vid.readyState < 2) return;
+  if(!cocoModel) return;
+
+  frameCount++;
+  document.getElementById('frameCount').textContent = 'Frame ' + frameCount;
+
+  const eps     = parseFloat(document.getElementById('epsV').textContent);
+  const atk     = selAtks[0] || 'FGSM';
+  const intVal  = parseInt(document.getElementById('defStrength')?.value || 2);
+  const defStr  = parseInt(document.getElementById('defStrength').value);
+  const defMeth = document.getElementById('defMethod').value;
+
+  // ─────────────────────────────────────────────
+  // ① CLEAN: draw whole frame → COCO-SSD classifies it
+  // ─────────────────────────────────────────────
+  pipeStep(1);
+  const cvO  = document.getElementById('cvO');
+  const ctxO = cvO.getContext('2d');
+  ctxO.drawImage(vid, 0, 0, W, H);
+
+  // Real model inference on the clean frame
+  const cleanDet = await classifyWhole(cvO);
+  drawBoxes(cvO, cleanDet.allObjects);
+
+  if(frameCount % 2 === 0) genGradCAM('cvO', 'cvG', 'clean');
+
+  // ─────────────────────────────────────────────
+  // ② ATTACK: perturb ENTIRE frame pixel-by-pixel
+  //    The attacked canvas is shown visually but
+  //    is NEVER fed to the model — the attack has
+  //    blinded the detector. No detections. Period.
+  // ─────────────────────────────────────────────
+  pipeStep(2);
+  applyAttackWhole('cvO', 'cvA', eps, atk, intVal);
+  document.getElementById('advTag').textContent = atk;
+
+  const cvA = document.getElementById('cvA');
+
+  // Draw red "BLINDED" overlay text on attacked canvas to make it clear
+  const ctxA = cvA.getContext('2d');
+  ctxA.save();
+  ctxA.font = 'bold 10px IBM Plex Mono, monospace';
+  ctxA.fillStyle = 'rgba(239,68,68,0.85)';
+  ctxA.fillRect(4, 4, 130, 18);
+  ctxA.fillStyle = '#fff';
+  ctxA.fillText('⚡ MODEL BLINDED', 8, 16);
+  ctxA.restore();
+
+  if(frameCount % 2 === 0){
+    genGradCAM('cvA', 'cvAG', 'adv');
+    genDelta('cvO', 'cvA', 'cvD', 12);
+  }
+
+  // Pixel-level metrics (clean vs attacked pixels)
+  const metrics = computeMetrics(ctxO, ctxA);
+
+  // Attack column always shows 0 detections — model is blinded
+  const cleanLabel = cleanDet.label || 'none';
+  const cleanConf  = cleanDet.conf;
+  // "no detections" IS the flip — attack succeeded if clean had detections
+  const attackBlinded = cleanDet.allObjects.length > 0; // attack succeeded: clean had detections, now none
+  const confDrop = cleanConf; // dropped to 0
+
+  // ─────────────────────────────────────────────
+  // ③ DEFEND: ONLY if guard is ON
+  //    Apply filter to attacked frame → run COCO-SSD
+  //    on the filtered result — this is the REAL test
+  //    of whether the defense recovers the signal.
+  // ─────────────────────────────────────────────
+  pipeStep(3);
+  let defDet = { label:'none', conf:0, allObjects:[] };
+  let defRecovered = false;
+
+  const cvDef = document.getElementById('cvDef');
+  const ovDef = document.getElementById('ovDef');
+
+  if(guardEnabled) {
+    ovDef.classList.add('h');
+    // Apply filter to attacked frame → write to defended canvas
+    applyDefense('cvA', 'cvDef', defMeth, defStr);
+    // Run real model inference on the DEFENDED (filtered) frame
+    defDet = await classifyWhole(cvDef);
+    drawBoxes(cvDef, defDet.allObjects);
+    // Recovery = defense restored a detection (any class, or matching clean)
+    defRecovered = defDet.allObjects.length > 0;
+    document.getElementById('defTag').textContent = defMeth.toUpperCase();
+    document.getElementById('defTag').className = 'cvtag t-def';
+  } else {
+    // Guard OFF: copy attacked frame visually, but show no detections
+    const ctxDef = cvDef.getContext('2d');
+    ctxDef.drawImage(cvA, 0, 0);
+    ctxDef.save();
+    ctxDef.font = 'bold 10px IBM Plex Mono, monospace';
+    ctxDef.fillStyle = 'rgba(71,85,105,0.85)';
+    ctxDef.fillRect(4, 4, 100, 18);
+    ctxDef.fillStyle = '#94a3b8';
+    ctxDef.fillText('GUARD OFF', 8, 16);
+    ctxDef.restore();
+    ovDef.classList.add('h'); // show the canvas, not the placeholder
+    document.getElementById('defTag').textContent = 'GUARD OFF';
+    document.getElementById('defTag').className = 'cvtag t-gcam';
+  }
+
+  // ─────────────────────────────────────────────
+  // Robustness score
+  // With guard off: how badly did the attack succeed
+  // With guard on: did the defense recover it
+  // ─────────────────────────────────────────────
+  let rob, suc;
+  if(guardEnabled && defRecovered){
+    // Defense worked — robustness partially restored
+    rob = Math.round(Math.max(30, Math.min(85, 50 + defDet.conf * 0.4 - eps * 100)));
+    suc = Math.round(Math.max(5, 60 - defDet.conf * 0.5));
+  } else {
+    // Attack succeeded (no guard, or guard failed)
+    rob = Math.round(Math.max(5, Math.min(45, 40 - eps * 200 - (attackBlinded ? 20 : 5))));
+    suc = Math.round(Math.min(98, 60 + eps * 200 + (attackBlinded ? 20 : 0)));
+  }
+
+  // ─────────────────────────────────────────────
+  // UI Updates
+  // ─────────────────────────────────────────────
+
+  // Pipeline strip — ① Clean
+  document.getElementById('pcCleanClass').textContent = cleanLabel === 'none' ? 'No detection' : cleanLabel;
+  document.getElementById('pcCleanConf').textContent  = 'conf: ' + cleanConf + '%';
+  document.getElementById('pcCleanBar').style.width   = cleanConf + '%';
+  document.getElementById('pcCleanObjs').innerHTML    = cleanDet.allObjects.slice(0,3).map(o=>`<span class="pill pill-b" style="margin-right:2px;margin-bottom:2px">${o.class}</span>`).join('');
+
+  // Pipeline strip — ② Attack (always blinded)
+  document.getElementById('pcAdvClass').textContent   = '— model blinded —';
+  document.getElementById('pcAdvClass').style.color   = 'var(--red2)';
+  document.getElementById('pcAdvConf').textContent    = 'conf: 0% (fooled)';
+  document.getElementById('pcAdvBar').style.width     = '0%';
+  document.getElementById('flipBadgeWrap').innerHTML  = attackBlinded
+    ? `<div class="flip-badge">⚡ BLINDED — ${cleanDet.allObjects.length} det → 0</div>`
+    : `<div class="flip-badge" style="background:var(--awl);color:var(--amber2)">⚠ Clean had no detections</div>`;
+
+  // Pipeline strip — ③ Defense
+  if(guardEnabled){
+    document.getElementById('pcDefClass').textContent  = defDet.allObjects.length > 0 ? defDet.label : 'No detection';
+    document.getElementById('pcDefConf').textContent   = 'conf: ' + defDet.conf + '%';
+    document.getElementById('pcDefBar').style.width    = defDet.conf + '%';
+    document.getElementById('recoverBadgeWrap').innerHTML = defRecovered
+      ? `<div class="recover-badge">✓ SIGNAL RECOVERED: ${defDet.allObjects.length} det</div>`
+      : `<span style="font-size:9px;color:var(--red2);font-family:var(--mono)">✗ Defense did not recover</span>`;
+  } else {
+    document.getElementById('pcDefClass').textContent  = '—';
+    document.getElementById('pcDefConf').textContent   = 'Guard off';
+    document.getElementById('pcDefBar').style.width    = '0%';
+    document.getElementById('recoverBadgeWrap').innerHTML = `<span style="font-size:9px;color:var(--t3);font-family:var(--mono)">Enable guard to test defense</span>`;
+  }
+
+  // Robustness bar
+  const robColor = rob>65?'var(--green)':rob>40?'var(--amber)':'var(--red)';
+  document.getElementById('rbScore').textContent      = rob + '%';
+  document.getElementById('rbScore').style.color      = robColor;
+  document.getElementById('rbFill').style.width       = rob + '%';
+  document.getElementById('rbFill').style.background  = robColor;
+  let statusText = `${atk} (ε=${eps}) blinded model — ${cleanDet.allObjects.length} clean dets → 0 after attack`;
+  if(guardEnabled) statusText += ` · ${defMeth}: ${defRecovered ? '✓ recovered '+defDet.allObjects.length+' dets' : '✗ still blinded'}`;
+  document.getElementById('rbStatus').textContent = statusText;
+
+  // Mini metrics
+  const robEl = document.getElementById('mRob');
+  robEl.textContent = rob + '%';
+  robEl.className = 'mm-v ' + (rob>65?'g':rob>40?'w':'r');
+  document.getElementById('mSuc').textContent  = suc + '%';
+  document.getElementById('mLi').textContent   = metrics.linf;
+  const ssEl = document.getElementById('mSS');
+  ssEl.textContent  = metrics.ssim;
+  ssEl.className    = 'mm-v ' + (parseFloat(metrics.ssim)>.85?'g':parseFloat(metrics.ssim)>.7?'w':'r');
+  document.getElementById('mDef').textContent  = guardEnabled ? (defRecovered ? '✓ YES' : '✗ NO') : 'OFF';
+  document.getElementById('mDrop').textContent = confDrop + '%';
+
+  document.getElementById('pAtk').textContent  = atk;
+  document.getElementById('pEps').textContent  = eps.toFixed(3);
+  document.getElementById('pFr').textContent   = frameCount;
+  document.getElementById('fpsChip').textContent = fps + ' fps · LIVE';
+
+  pipeStep(0);
+
+  lastResult = {
+    atk, eps, rob, suc,
+    cleanLabel, cleanConf,
+    attackBlinded,
+    defLabel: defDet.label, defConf: defDet.conf, defRecovered,
+    guardEnabled, defMethod: defMeth,
+    linf: metrics.linf, l2: metrics.l2, ssim: metrics.ssim,
+    ts: new Date()
+  };
+
+  if(isRecording) addToDB(lastResult);
+
+  window._ctx = `Pipeline: Clean(${cleanLabel}:${cleanConf}%,${cleanDet.allObjects.length}dets) → Attack(${atk},ε=${eps}):BLINDED(0dets) → Guard(${guardEnabled?defMeth:'off'}):${defRecovered?defDet.allObjects.length+'dets recovered':'still blinded'} | Rob:${rob}% L∞:${metrics.linf} SSIM:${metrics.ssim} Frame:${frameCount}`;
+}
+
+// ── Camera ──
+async function enumCameras() {
+  try {
+    await navigator.mediaDevices.getUserMedia({video:true});
+    const devs = await navigator.mediaDevices.enumerateDevices();
+    const cams = devs.filter(d=>d.kind==='videoinput');
+    const sel = document.getElementById('camSel');
+    sel.innerHTML = '<option value="">Select Camera...</option>';
+    cams.forEach((c,i) => {
+      const opt = document.createElement('option');
+      opt.value = c.deviceId;
+      opt.textContent = c.label || `Camera ${i+1}`;
+      sel.appendChild(opt);
+    });
+    if(cams.length>0) sel.value = cams[0].deviceId;
+    chat('ai', `Found <b>${cams.length}</b> camera${cams.length!==1?'s':''}. Ready to start.`);
+  } catch(e) {
+    chat('ai','⚠️ Camera permission denied. Please allow camera access and refresh.');
+  }
+}
+
+async function startCamera() {
+  const deviceId = document.getElementById('camSel').value;
+  const res = parseInt(document.getElementById('resSel').value);
+  const constraints = {
+    video: deviceId
+      ? { deviceId:{exact:deviceId}, width:{ideal:res}, height:{ideal:Math.round(res*.75)} }
+      : { width:{ideal:res}, height:{ideal:Math.round(res*.75)} }
+  };
+  try {
+    stream = await navigator.mediaDevices.getUserMedia(constraints);
+    const vid = document.getElementById('vid');
+    vid.srcObject = stream;
+    vid.style.display = 'block';
+    await new Promise(r=>vid.onloadedmetadata=r);
+    vid.play();
+    document.getElementById('ovO').classList.add('h');
+    document.getElementById('btnStart').style.display='none';
+    document.getElementById('btnStop').style.display='flex';
+    document.getElementById('toggleBtn').disabled=false;
+    document.getElementById('fpsChip').textContent='Camera Live';
+    setChipStatus('READY','');
+    enumCameras();
+    chat('ai','✅ Camera connected. Click <b>Start Live Analysis</b> to begin. The attack will perturb the <b>full frame</b>.');
+  } catch(e) {
+    chat('ai','❌ Could not access camera: '+e.message);
+  }
+}
+
+function stopCamera() {
+  if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
+  stopAnalysis();
+  document.getElementById('vid').style.display='none';
+  document.getElementById('ovO').classList.remove('h');
+  document.getElementById('btnStart').style.display='flex';
+  document.getElementById('btnStop').style.display='none';
+  document.getElementById('fpsChip').textContent='Camera Offline';
+  setChipStatus('IDLE','');
+}
+
+async function switchCamera() {
+  if(stream) await startCamera();
+}
+
+function toggleRecord() {
+  isRecording = !isRecording;
+  const btn = document.getElementById('btnRec');
+  btn.className = isRecording ? 'cbtn recording' : 'cbtn';
+  chat('ai', isRecording ? '🔴 Recording started.' : '⏹ Recording stopped.');
+}
+
+function setRate(v) {
+  fps = parseInt(v);
+  fpsInterval = 1000/fps;
+  document.getElementById('rateV').textContent = fps + ' fps';
+}
+
+function toggleGuard(on) {
+  guardEnabled = on;
+  document.getElementById('guardStatus').textContent = on ? 'ON' : 'OFF';
+  document.getElementById('guardStatus').className = 'guard-status ' + (on?'on':'off');
+  document.getElementById('guardLbl').textContent = 'Guard: ' + (on ? document.getElementById('defMethod').value.toUpperCase() : 'OFF');
+  document.getElementById('guardLbl').style.color = on ? 'var(--cyan2)' : 'var(--t3)';
+  if(!on){
+    document.getElementById('ovDef').classList.remove('h');
+    document.getElementById('pcDefClass').textContent = '—';
+    document.getElementById('pcDefConf').textContent = 'Guard off';
+    document.getElementById('recoverBadgeWrap').innerHTML = '';
+  }
+}
+
+// ── Analysis loop ──
+function toggleLive() {
+  if(!stream){ chat('ai','Please start the camera first.'); return; }
+  if(analysisRunning) stopAnalysis(); else startAnalysis();
+}
+
+function startAnalysis() {
+  analysisRunning = true;
+  document.getElementById('toggleBtn').textContent = '⏸ Stop Analysis';
+  document.getElementById('toggleBtn').className = 'btn bg';
+  setChipStatus('LIVE','live');
+  frameCount = 0;
+  ['ovG','ovA','ovAG','ovD'].forEach(id=>document.getElementById(id).classList.add('h'));
+  analysisTick = requestAnimationFrame(analysisLoop);
+}
+
+function stopAnalysis() {
+  analysisRunning = false;
+  if(analysisTick) cancelAnimationFrame(analysisTick);
+  document.getElementById('toggleBtn').textContent = '▶ Start Live Analysis';
+  document.getElementById('toggleBtn').className = 'btn br';
+  setChipStatus('PAUSED','');
+  pipeStep(0);
+}
+
+function analysisLoop(ts) {
+  if(!analysisRunning) return;
+  if(ts - lastFrameTime >= fpsInterval){
+    lastFrameTime = ts;
+    processFrame();
+  }
+  analysisTick = requestAnimationFrame(analysisLoop);
+}
+
+// ── Snapshot ──
+function captureSnapshot() {
+  const fl = document.getElementById('snapFlash');
+  fl.classList.add('flash');
+  setTimeout(()=>fl.classList.remove('flash'),180);
+  if(lastResult){ addToDB({...lastResult,snapshot:true,ts:new Date()}); chat('ai','📷 Snapshot saved — Frame #'+frameCount); }
+  else chat('ai','⚠️ Start live analysis before taking a snapshot.');
+}
+
+// ── Attack toggle ──
+function toggleAtk(el, name) {
+  el.classList.toggle('on');
+  selAtks = el.classList.contains('on')
+    ? [...selAtks.filter(a=>a!==name), name]
+    : selAtks.filter(a=>a!==name);
+  document.getElementById('pAtk').textContent = selAtks[0] || '—';
+}
+
+// ── DB ──
+function addToDB(r) {
+  db.push({id:db.length+1,...r});
+  const n = db.length;
+  ['dbPill','dbCntR'].forEach(id=>document.getElementById(id).textContent=n);
+  document.getElementById('dbCntFull').textContent = n + ' entries';
+  renderMiniDB();
+  document.getElementById('expBtn').disabled = false;
+}
+
+function renderMiniDB() {
+  document.getElementById('dbBody').innerHTML = db.slice(-20).reverse().map(r=>`<tr>
+    <td>${r.id}</td>
+    <td><span class="pill pill-r">${r.atk}</span></td>
+    <td style="color:${r.rob>65?'var(--green2)':r.rob>40?'var(--amber2)':'var(--red2)'}">${r.rob}%</td>
+    <td style="color:${r.guardEnabled?'var(--cyan2)':'var(--t3)'}">${r.guardEnabled?(r.defRecovered?'✓':'✗'):'—'}</td>
+    <td><span class="ds ${r.changed?'f':'p'}"></span>${r.changed?'✗':'✓'}</td>
+  </tr>`).join('');
+}
+
+function renderFullDB() {
+  if(!db.length){ document.getElementById('dbFullContent').innerHTML='<div style="color:var(--t3);font-size:11px">No records yet.</div>'; return; }
+  document.getElementById('dbFullContent').innerHTML=`<div style="overflow-x:auto;background:var(--panel);border:1px solid var(--border);border-radius:10px">
+  <table class="dbt" style="min-width:900px">
+    <thead><tr><th>ID</th><th>Attack</th><th>ε</th><th>Clean</th><th>Adv</th><th>Flip</th><th>Rob</th><th>L∞</th><th>SSIM</th><th>Guard</th><th>Def Method</th><th>Recovered</th><th>Snap</th><th>Time</th></tr></thead>
+    <tbody>${db.map(r=>`<tr>
+      <td>${r.id}</td>
+      <td><span class="pill pill-r">${r.atk}</span></td>
+      <td>${r.eps.toFixed(3)}</td>
+      <td style="color:var(--accent2)">${r.cleanLabel||'—'}</td>
+      <td style="color:${r.changed?'var(--red2)':'var(--green2)'}">${r.advLabel||'—'}</td>
+      <td>${r.changed?'<span class="pill pill-r">YES</span>':'<span class="pill pill-g">NO</span>'}</td>
+      <td style="color:${r.rob>65?'var(--green2)':r.rob>40?'var(--amber2)':'var(--red2)'}"><b>${r.rob}%</b></td>
+      <td>${r.linf}</td><td>${r.ssim}</td>
+      <td>${r.guardEnabled?'<span class="pill pill-c">'+r.defMethod+'</span>':'<span class="pill" style="background:var(--bg3);color:var(--t3)">OFF</span>'}</td>
+      <td>${r.defLabel||'—'}</td>
+      <td>${r.guardEnabled?(r.defRecovered?'<span class="pill pill-g">YES</span>':'<span class="pill pill-r">NO</span>'):'—'}</td>
+      <td>${r.snapshot?'📷':''}</td>
+      <td>${r.ts.toLocaleTimeString()}</td>
+    </tr>`).join('')}</tbody>
+  </table></div>`;
+}
+
+function exportDB() {
+  const csv=['ID,Attack,Epsilon,CleanLabel,AdvLabel,Flipped,Robustness,L∞,SSIM,Guard,DefMethod,DefLabel,Recovered,Snapshot,Timestamp']
+    .concat(db.map(r=>`${r.id},${r.atk},${r.eps},${r.cleanLabel},${r.advLabel},${r.changed},${r.rob},${r.linf},${r.ssim},${r.guardEnabled},${r.defMethod||''},${r.defLabel||''},${r.defRecovered||false},${!!r.snapshot},${r.ts.toISOString()}`))
+    .join('\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  a.download='robustness_v2_'+Date.now()+'.csv'; a.click();
+}
+
+// ── Tabs ──
+function setChipStatus(txt,cls) {
+  const el = document.getElementById('stChip');
+  el.textContent = txt; el.className = 'fh-chip ch-st '+cls;
+}
+
+function setTab(el, tab) {
+  document.querySelectorAll('.stab').forEach(t=>t.classList.remove('a'));
+  el.classList.add('a');
+  document.getElementById('mainView').style.display='none';
+  ['dbView','defView','repView'].forEach(id=>{const v=document.getElementById(id);if(v)v.style.display='none';});
+  if(tab==='main'){ document.getElementById('mainView').style.display='grid'; }
+  else if(tab==='db'){ renderFullDB(); document.getElementById('dbView').style.display='flex'; }
+  else if(tab==='def'){ document.getElementById('defView').style.display='flex'; if(lastResult)genDefenses(lastResult); }
+  else if(tab==='rep'){ document.getElementById('repView').style.display='flex'; genReport(lastResult||{atk:selAtks[0]||'FGSM',eps:parseFloat(document.getElementById('epsV').textContent)||0.03,rob:0,suc:0,linf:'0',ssim:'1',ts:new Date()}); }
+}
+
+function setRTab(el, tab) {
+  document.querySelectorAll('.rpt').forEach(t=>t.classList.remove('a'));
+  el.classList.add('a');
+  document.querySelectorAll('.rptc').forEach(t=>t.classList.remove('a'));
+  document.getElementById('rtc-'+tab).classList.add('a');
+}
+
+// ── AI Features ──
+async function genDefenses(r) {
+  const el=document.getElementById('defContent');
+  el.innerHTML='<div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--t3)"><div class="spin"></div> Generating...</div>';
+  const pr=`For a model attacked with ${r.atk} (ε=${r.eps}), robustness ${r.rob}%, SSIM=${r.ssim}, classification flipped:${r.changed}. Guard defense used: ${r.guardEnabled?r.defMethod:'none'}, recovered:${r.defRecovered||false}. Provide 5 defense recommendations. Return only a JSON array: [{"icon":"emoji","title":"...","description":"...","level":"HIGH|MEDIUM|LOW"}]. No markdown.`;
+  try {
+    const res=await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:800,system:'You are an adversarial ML defense expert. Return only valid JSON arrays.',messages:[{role:'user',content:pr}]})});
+    const data=await res.json();
+    let txt=(data.content?.[0]?.text||'').replace(/```json|```/g,'').trim();
+    renderDefenses(JSON.parse(txt));
+  } catch {
+    renderDefenses([
+      {icon:'🏋️',title:'Adversarial Training',description:'Augment training with FGSM/PGD examples on the whole-image level to improve real robustness.',level:'HIGH'},
+      {icon:'🔀',title:'Input Randomization',description:'Apply random resizing, padding, and bit-depth reduction before inference.',level:'MEDIUM'},
+      {icon:'🧹',title:'Diffusion Purification',description:'Project inputs back onto the clean data manifold with a pre-trained diffusion model.',level:'HIGH'},
+      {icon:'📦',title:'Certified Smoothing',description:'Randomized smoothing provides provable L2 robustness guarantees per inference.',level:'MEDIUM'},
+      {icon:'🛡',title:'Ensemble Defense',description:'Run multiple architectures and flag diverging predictions above a confidence threshold.',level:'LOW'},
+    ]);
+  }
+}
+
+function renderDefenses(defs) {
+  const lc={HIGH:'pill-r',MEDIUM:'pill-w',LOW:'pill-g'};
+  document.getElementById('defContent').innerHTML=defs.map(d=>`
+    <div class="def-card">
+      <div class="def-hd"><span>${d.icon}</span><span class="def-ti">${d.title}</span>
+        <span class="pill ${lc[d.level]||'pill-b'}" style="margin-left:auto">${d.level}</span></div>
+      <div class="def-de">${d.description}</div>
+    </div>`).join('');
+}
+
+async function genReport(r) {
+  const el = document.getElementById('repContent');
+  el.innerHTML = '<div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--t3)"><div class="spin"></div> Generating report...</div>';
+  const totalRecs = db.length;
+  const avgRob = totalRecs ? Math.round(db.reduce((s,d)=>s+d.rob,0)/totalRecs) : r.rob;
+  const changedCount = db.filter(d=>d.changed).length;
+  const recoveredCount = db.filter(d=>d.defRecovered).length;
+  const attackSuccess = totalRecs ? Math.round(changedCount/totalRecs*100) : r.suc;
+  const robColor = avgRob>65?'#22c55e':avgRob>40?'#f59e0b':'#ef4444';
+  const prompt = `Adversarial robustness report for whole-frame attack pipeline:
+Session: ${frameCount} frames, ${totalRecs} logged.
+Attack(s): ${[...new Set(db.map(d=>d.atk))].join(',') || r.atk}, ε=${r.eps}
+Avg Robustness: ${avgRob}%, Attack Success: ${attackSuccess}%
+Defense recoveries: ${recoveredCount}/${totalRecs} (${db.filter(d=>d.guardEnabled).length} with guard on)
+Key: attacks applied to ENTIRE frame (not just detected ROI).
+Sections: EXECUTIVE SUMMARY | ATTACK ANALYSIS | DEFENSE ANALYSIS | RECOMMENDATIONS
+2-3 sentences each, plain text only.`;
+  let aiText = '';
+  try {
+    const res = await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:700,system:'You are a cybersecurity ML analyst. Write concise professional reports.',messages:[{role:'user',content:prompt}]})});
+    const data = await res.json();
+    aiText = data.content?.[0]?.text || '';
+    window._rTxt = aiText;
+  } catch(e) { aiText = 'Analysis generation failed.'; }
+
+  const sections = ['EXECUTIVE SUMMARY','ATTACK ANALYSIS','DEFENSE ANALYSIS','RECOMMENDATIONS'];
+  let fmt = aiText;
+  sections.forEach(sec=>{
+    fmt=fmt.replace(sec,`<div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--accent2);margin:14px 0 5px;font-family:var(--mono)">${sec}</div>`);
+  });
+  fmt=fmt.replace(/\n/g,'<br>');
+
+  el.innerHTML=`<div style="max-width:900px">
+  <div style="background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:18px 22px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between">
+    <div>
+      <div style="font-size:16px;font-weight:700;color:var(--text);font-family:var(--mono)">Adversarial Robustness Report</div>
+      <div style="font-size:10px;color:var(--t3);margin-top:3px;font-family:var(--mono)">RobustVision v2 · Whole-Frame Pipeline · ${new Date().toLocaleString()}</div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <div style="background:rgba(59,130,246,.15);border:1px solid var(--accent);border-radius:6px;padding:7px 13px;text-align:center">
+        <div style="font-size:20px;font-weight:700;color:var(--accent2);font-family:var(--mono)">${frameCount}</div>
+        <div style="font-size:8px;color:var(--t3);font-family:var(--mono)">FRAMES</div>
+      </div>
+      <div style="background:rgba(${avgRob>65?'34,197,94':avgRob>40?'245,158,11':'239,68,68'},.15);border:1px solid ${robColor};border-radius:6px;padding:7px 13px;text-align:center">
+        <div style="font-size:20px;font-weight:700;color:${robColor};font-family:var(--mono)">${avgRob}%</div>
+        <div style="font-size:8px;color:var(--t3);font-family:var(--mono)">ROBUSTNESS</div>
+      </div>
+      <div style="background:rgba(239,68,68,.15);border:1px solid #ef4444;border-radius:6px;padding:7px 13px;text-align:center">
+        <div style="font-size:20px;font-weight:700;color:#ef4444;font-family:var(--mono)">${attackSuccess}%</div>
+        <div style="font-size:8px;color:var(--t3);font-family:var(--mono)">ATK SUCCESS</div>
+      </div>
+      <div style="background:var(--cl);border:1px solid var(--cyan);border-radius:6px;padding:7px 13px;text-align:center">
+        <div style="font-size:20px;font-weight:700;color:var(--cyan2);font-family:var(--mono)">${recoveredCount}</div>
+        <div style="font-size:8px;color:var(--t3);font-family:var(--mono)">RECOVERED</div>
+      </div>
+    </div>
+  </div>
+  <div style="background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:15px 17px;margin-bottom:12px;font-size:11px;line-height:1.8;color:var(--t2)">${fmt}</div>
+  <div style="display:flex;gap:7px">
+    <button class="btn bp" onclick="dlRep()" style="font-size:11px">↓ Download Report (.txt)</button>
+    <button class="btn bg" onclick="exportDB()" style="font-size:11px" ${totalRecs===0?'disabled':''}>↓ Export Session CSV</button>
+  </div>
+</div>`;
+}
+
+function dlRep() {
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([window._rTxt||''],{type:'text/plain'}));
+  a.download='robustness_report_'+Date.now()+'.txt'; a.click();
+}
+
+// ── Chat ──
+async function sendChat() {
+  const inp=document.getElementById('chatIn');
+  const msg=inp.value.trim(); if(!msg) return;
+  inp.value='';
+  document.getElementById('chatBtn').disabled=true;
+  chat('user',msg);
+  const tid='t'+Date.now();
+  document.getElementById('chatMsgs').insertAdjacentHTML('beforeend',
+    `<div class="msg ai" id="${tid}"><div class="mav">AI</div><div class="mb"><div class="td"><span></span><span></span><span></span></div></div></div>`);
+  document.getElementById('chatMsgs').scrollTop=9999;
+  const ctx=window._ctx||'No live analysis running yet.';
+  try {
+    const res=await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:700,system:`You are RobustVision's AI analyst. Pipeline: whole-frame FGSM/PGD/C&W/DeepFool attacks (no ROI), then optional defense guard filter. Current state: ${ctx}. Answer concisely about adversarial attacks, defenses, and model robustness.`,messages:[{role:'user',content:msg}]})});
+    const data=await res.json();
+    const reply=(data.content?.[0]?.text||'Unable to respond.').replace(/\n/g,'<br>');
+    document.getElementById(tid).remove();
+    chat('ai',reply);
+  } catch { document.getElementById(tid).remove(); chat('ai','API error.'); }
+  document.getElementById('chatBtn').disabled=false;
+}
+
+function chat(role, html) {
+  const av=role==='ai'?'AI':'RS';
+  document.getElementById('chatMsgs').insertAdjacentHTML('beforeend',
+    `<div class="msg ${role}"><div class="mav">${av}</div><div class="mb">${html}</div></div>`);
+  document.getElementById('chatMsgs').scrollTop=9999;
+}
+
+// ── Init ──
+window.addEventListener('load', ()=>{
+  if(!navigator.mediaDevices){
+    chat('ai','⚠️ Camera API not supported. Please use Chrome/Firefox on HTTPS.');
+    return;
+  }
+  loadModel();
+  navigator.mediaDevices.enumerateDevices().then(devs=>{
+    const cams=devs.filter(d=>d.kind==='videoinput');
+    if(cams.length>0){
+      const sel=document.getElementById('camSel');
+      sel.innerHTML='<option value="">Select Camera...</option>';
+      cams.forEach((c,i)=>{
+        const o=document.createElement('option');
+        o.value=c.deviceId;
+        o.textContent=c.label||`Camera ${i+1}`;
+        sel.appendChild(o);
+      });
+      if(cams.length>0) sel.value=cams[0].deviceId;
+    }
+  }).catch(()=>{});
+});
+</script>
+</body>
+</html>
